@@ -1,5 +1,7 @@
 import sys
 
+
+
 def main():
     print("void permute(float *dst, float *src)\n{")
     # Get the command-line arguments
