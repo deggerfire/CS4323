@@ -1,28 +1,30 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void opt_compute(int n, int* a, int* o);
+void opt_permute(float* src, float* dst);
 
 // FOILer
-void compute(int n, int* a, int* o) {
-    for (int i = 0; i < n; i++) {
-        o[i] = (a[i+0]+a[i+1])*(a[i+2]+a[i+3]);
-    }
+void permute(float* src, float* dst) {
+    dst[0] = src[1];
+    dst[1] = src[2];
+    dst[2] = src[3];
+    dst[3] = src[0];
+    dst[4] = src[4];
+    dst[5] = src[5];
+    dst[6] = src[6];
+    dst[7] = src[7];
 }
 
 int main() {
-    int a[20] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19};
+    float a[8] = {0.0,1.0,2.0,3.0,4.0,5.0,6.0,7.0};
 
-    int o[20];
-    int o1[20];
+    float o[8];
+    float o1[8];
 
     int numFails = 0;
 
-    // Calculated using main.py
-    int n = 17;
-
-    compute(n, a, o);
-    opt_compute(n, a, o1);
+    permute(a, o);
+    opt_permute(a, o1);
 
     for (int i = 0; i < 17; i++) {
         if (o[i]==o1[i]) printf("PASS\n");
