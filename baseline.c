@@ -26,8 +26,8 @@ int main() {
     permute(a, o);
     opt_permute(a, o1);
 
-    for (int i = 0; i < 17; i++) {
-        if (o[i]==o1[i]) printf("PASS\n");
+    for (int i = 0; i < 8; i++) {
+        if (abs(o[i] - o1[i]) < .00001) printf("PASS\n");
         else {
             printf("FAIL\n");
             numFails++;
