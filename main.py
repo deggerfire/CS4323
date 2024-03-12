@@ -1,5 +1,6 @@
 import sys
-
+from sympy import *
+import re 
 
 KIND_MEM_TO_REG = 1
 KIND_REG_TO_REG = 2
@@ -191,6 +192,33 @@ def main():
 
     generate_all_scalar_instruction_combinations(order)
 
+# Check if code is symbolically equal to correct
+def Check_Symbolically(correct, code):
+    # Make the code symbol list
+    codeSymList = []
+    for line in code:
+        # This part needs to be fixed
+        # Use regex to delete all non numbers on a line and append it
+        codeSymList.append(re.sub("\D", "", line))
+
+    # Go though the codes symbol list
+    for line in codeSymList:
+        # Get the symbol for this line
+        symbol = symbols(line[0] +'='+line[1])
+        # Check if it is in the correct symbols, if so remove it
+        if symbol in correct:
+            correct.remove(symbol)
+        # Else they are not symbolically equal and we are done
+        else:
+            return False
+
+    # Check is correct is empty (cause everything should of been removed)
+    if len(correct) == 0:
+        # If it is they are equal
+        return True
+    else:
+        # Else they are not equal
+        return False
 
 if __name__ == "__main__":
     main()
