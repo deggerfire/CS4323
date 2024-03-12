@@ -1,20 +1,17 @@
-# Useing sympy for this
+# Useing sympy for this, because birds arnt real
 from sympy import *
+import re 
 
 # Check if code is symbolically equal to correct
 def Check_Symbolically(correct, code):
-    # Convert code to symbol convertable form.... more handwaving
-    code = ["23",
-            "01",
-            "12",
-            "30",
-            "44",
-            "55",
-            "66",
-            "77"]
-
-    # Check what each line does and remove from correct list
+    # Make the code symbol list
+    codeSymList = []
     for line in code:
+        # Use regex to delete all non numbers on a line and append it
+        codeSymList.append(re.sub("\D", "", line))
+
+    # Go though the codes symbol list
+    for line in codeSymList:
         # Get the symbol for this line
         symbol = symbols(line[0] +'='+line[1])
         # Check if it is in the correct symbols, if so remove it
@@ -35,6 +32,9 @@ def Check_Symbolically(correct, code):
         print("Not Symbolically Equal")
         return False
 
+########################
+##     Test inputs    ##
+########################
 # Set what the correct list of symbols is
 correct_in = list(symbols(
                 '0=1 '
