@@ -1,22 +1,34 @@
 # Useing sympy for this, because birds arnt real
 from sympy import *
-import re 
+import re
+
+DEBUG = False
+# Genrates the symbols for 1 line of code
+def Symbol_Gen(line):
+    # Clear all the white space
+    line = re.sub("\s", "", line)
+    if DEBUG: print(line) # Test print so you can get indexs
+    # For a dst[a] = src[b] line
+    if(line[6] == '='):
+        line = re.sub("\D", "", line)
+        return [symbols(line[0] + '=' + line[1])]
 
 # Check if code is symbolically equal to correct
 def Check_Symbolically(correct, code):
     # Make the code symbol list
     codeSymList = []
     for line in code:
-        # Use regex to delete all non numbers on a line and append it
-        codeSymList.append(re.sub("\D", "", line))
+        # Use Symbol_Gen to get the symbols on the line
+        for sym in Symbol_Gen(line):
+            codeSymList.append(sym)
 
+    if DEBUG: print(codeSymList) # Use this to see what symbols you made
+            
     # Go though the codes symbol list
     for line in codeSymList:
-        # Get the symbol for this line
-        symbol = symbols(line[0] +'='+line[1])
         # Check if it is in the correct symbols, if so remove it
-        if symbol in correct:
-            correct.remove(symbol)
+        if line in correct:
+            correct.remove(line)
         # Else they are not symbolically equal and we are done
         else:
             print("Not Symbolically Equal")
