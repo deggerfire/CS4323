@@ -13,3 +13,5 @@ Call "make" in that folder to see the results. Some of the answers are not ideal
 hw2_code.c contains all the important stuff. The other .c files were for testing and much of it is broken, so properly just ignore it.
 
 The goal of this folder is to give you a better understanding of AVX instruction syntax.
+
+Running the code: python3 main.py 4 3 1 2 0 5 7 6 12 11 9 10 8 13 15 14
