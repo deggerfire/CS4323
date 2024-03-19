@@ -1,6 +1,8 @@
 import sys
 import sympy
-import re 
+import re
+from collections.abc import Iterator
+
 
 DEBUG = False
 
@@ -255,11 +257,12 @@ def generate_scalar_instruction_combinations(inst_pool: list,
 def generate_vector_instruction_combinations(inst_pool: list,
                                              variables_online: list, seq_len: int,
                                              order: list,
-                                             stores_completed: int) -> list:
+                                             stores_completed: int) -> Iterator[str]:
 
     if seq_len == 0 \
         or len(inst_pool) == 0:
-        return []
+        yield ''
+        return
 
     # select the instruction
     inst = inst_pool[0]
@@ -294,8 +297,11 @@ def generate_vector_instruction_combinations(inst_pool: list,
         new_stores_completed = stores_completed
         new_order = order
 
-        for src_a in variables_online:
-            for src_b in variables_online:
+        for src_a_idx in range(len(variables_online)):
+            for src_b_idx in range(src_a_idx, len(variables_online)):
+                src_a = variables_online[src_a_idx]
+                src_b = variables_online[src_b_idx]
+
                 for mask in range(MASK_MAX):
                     new_variables_online_element = []
                     actual_inst = VecShuffle(src_a, src_b, mask)
@@ -312,17 +318,19 @@ def generate_vector_instruction_combinations(inst_pool: list,
         new_stores_completed = stores_completed
         new_order = order
 
-        for src_a in variables_online:
-            for src_b in variables_online:
-                if src_a != src_b:
-                    for mask in range(MASK_MAX):
-                        new_variables_online_element = []
-                        actual_inst = VecBlend(src_a, src_b, mask)
+        for src_a_idx in range(len(variables_online)):
+            for src_b_idx in range(src_a_idx + 1, len(variables_online)):
+                src_a = variables_online[src_a_idx]
+                src_b = variables_online[src_b_idx]
 
-                        actual_insts.append(actual_inst)
-                        new_variables_online_element.extend(variables_online)
-                        new_variables_online_element.append(actual_inst.dst_name())
-                        new_variables_online.append(new_variables_online_element)
+                for mask in range(MASK_MAX):
+                    new_variables_online_element = []
+                    actual_inst = VecBlend(src_a, src_b, mask)
+
+                    actual_insts.append(actual_inst)
+                    new_variables_online_element.extend(variables_online)
+                    new_variables_online_element.append(actual_inst.dst_name())
+                    new_variables_online.append(new_variables_online_element)
     elif isinstance(inst, VecStore) and variables_online:
         # using the stores_completed thingy to measure which one to store to
         # this means that the shuffles are only possible within the 8 elements
@@ -354,36 +362,21 @@ def generate_vector_instruction_combinations(inst_pool: list,
 
     # print(f'actual_insts: {actual_insts}')
 
-    updated_selected_combinations = []
-
     for (idx, actual_inst) in enumerate(actual_insts):
         new_variables_online_element = new_variables_online[idx]
         inst_code = actual_inst.code()
 
         # print(f'trying: {inst_code}')
 
-        selected_combinations = generate_vector_instruction_combinations(inst_pool, new_variables_online_element,
-                                                                         seq_len - 1, new_order,
-                                                                         new_stores_completed)
-
-        if selected_combinations:
-            for combination in selected_combinations:
-                updated_selected_combinations.append(inst_code + '\n' + combination)
-        else:
-            updated_selected_combinations.append(inst_code + '\n')
+        for combination in generate_vector_instruction_combinations(inst_pool, new_variables_online_element,
+                                                                    seq_len - 1, new_order, new_stores_completed):
+            yield inst_code + '\n' + combination
 
     # don't select the instruction
-    unselected_combinations = generate_vector_instruction_combinations(inst_pool[1:], variables_online,
-                                                                       seq_len, order,
-                                                                       stores_completed)
+    for combination in generate_vector_instruction_combinations(inst_pool[1:], variables_online,
+                                                                seq_len, order, stores_completed):
 
-
-    total_combinations = []
-
-    total_combinations.extend(updated_selected_combinations)
-    total_combinations.extend(unselected_combinations)
-
-    return total_combinations
+        yield combination
 
 
 def generate_all_instruction_combinations(order: list) -> list:
