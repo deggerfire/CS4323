@@ -422,24 +422,13 @@ def main():
     generate_all_instruction_combinations(order)
 
 
-# Genrates the symbols for 1 line of code
-def Symbol_Gen(line):
-    # Clear all the white space
-    line = re.sub("\s", "", line)
-    if DEBUG: print(line) # Test print so you can get indexs
-    # For a dst[a] = src[b] line
-    if(line[6] == '='):
-        line = re.sub("\D", "", line)
-        return [symbols(line[0] + '=' + line[1])]
-
-
-# Check if code is symbolically equal to correct
-def Check_Symbolically(correct, code):
+## Check if code is symbolically equal to correct
+def Check_Symbolically(correct, instructions):
     # Make the code symbol list
     codeSymList = []
-    for line in code:
-        # Use Symbol_Gen to get the symbols on the line
-        for sym in Symbol_Gen(line):
+    for instr in instructions:
+        # Use Symbol_Gen method to get the symbols from instruction
+        for sym in instr.Symbol_Gen():
             codeSymList.append(sym)
 
     if DEBUG: print(codeSymList) # Use this to see what symbols you made
@@ -451,17 +440,17 @@ def Check_Symbolically(correct, code):
             correct.remove(line)
         # Else they are not symbolically equal and we are done
         else:
-            print("Not Symbolically Equal")
+            if DEBUG: print("Not Symbolically Equal")
             return False
 
     # Check is correct is empty (cause everything should of been removed)
     if len(correct) == 0:
         # If it is they are equal
-        print("Symbolically Equal")
+        if DEBUG: print("Symbolically Equal")
         return True
     else:
         # Else they are not equal
-        print("Not Symbolically Equal")
+        if DEBUG: print("Not Symbolically Equal")
         return False
 
 
