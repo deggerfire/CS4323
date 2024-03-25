@@ -310,6 +310,9 @@ def generate_vector_instruction_combinations(inst_pool: list,
 
                     new_variables_online_element.extend(variables_online)
                     new_variables_online_element.append(actual_inst.dst_name())
+                    new_variables_online_element.remove(src_a)
+                    if src_a != src_b: new_variables_online_element.remove(src_b)
+
                     new_variables_online.append(new_variables_online_element)
     elif isinstance(inst, VecBlend) and variables_online:
         actual_insts = []
@@ -330,6 +333,9 @@ def generate_vector_instruction_combinations(inst_pool: list,
                     actual_insts.append(actual_inst)
                     new_variables_online_element.extend(variables_online)
                     new_variables_online_element.append(actual_inst.dst_name())
+                    new_variables_online_element.remove(src_a)
+                    new_variables_online_element.remove(src_b)
+
                     new_variables_online.append(new_variables_online_element)
     elif isinstance(inst, VecStore) and variables_online:
         # using the stores_completed thingy to measure which one to store to
@@ -399,7 +405,7 @@ def generate_all_instruction_combinations(order: list) -> list:
     vector_order = list(order)
     vector_order.sort()
 
-    max_vector_inst_len = len(vector_order)
+    max_vector_inst_len = 5 # len(vector_order)
 
     print('vector sequences:')
 
