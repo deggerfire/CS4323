@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 import sympy
 import re
@@ -157,6 +158,23 @@ class VecBlend(Instruction):
         return f'{self.dst_name()} = _mm256_blend_ps({self.src_a}, {self.src_b}, {self.mask});'
 
 
+class CodeSequence:
+    def __init__(self, instructions: list) -> None:
+        self.instructions = instructions
+
+
+    def code(self):
+        return '\n'.join(inst.code() for inst in self.instructions)
+
+
+    def prepend(self, instruction: Instruction) -> CodeSequence:
+        new_instructions = []
+        new_instructions.append(instruction)
+        new_instructions.extend(self.instructions)
+
+        return CodeSequence(new_instructions)
+
+
 SCALAR_INSTRUCTIONS = [ Load(), Store() ]
 VECTOR_INSTRUCTIONS = [ VecLoad(), VecShuffle(), VecBlend(), VecStore() ]
 
@@ -226,8 +244,6 @@ def generate_scalar_instruction_combinations(inst_pool: list,
     assert new_order is not None
     assert new_variables_online is not None
 
-    inst_code = actual_inst.code()
-
     selected_combinations = generate_scalar_instruction_combinations(inst_pool, new_variables_online,
                                                                      seq_len - 1, new_order,
                                                                      new_stores_completed)
@@ -236,9 +252,9 @@ def generate_scalar_instruction_combinations(inst_pool: list,
 
     if selected_combinations:
         for combination in selected_combinations:
-            updated_selected_combinations.append(inst_code + '\n' + combination)
+            updated_selected_combinations.append(combination.prepend(actual_inst))
     else:
-        updated_selected_combinations = [ inst_code + '\n' ]
+        updated_selected_combinations = [ CodeSequence([actual_inst]) ]
 
     # don't select the instruction
     unselected_combinations = generate_scalar_instruction_combinations(inst_pool[1:], variables_online,
@@ -257,11 +273,17 @@ def generate_scalar_instruction_combinations(inst_pool: list,
 def generate_vector_instruction_combinations(inst_pool: list,
                                              variables_online: list, seq_len: int,
                                              order: list,
-                                             stores_completed: int) -> Iterator[str]:
+                                             stores_completed: int) -> Iterator[CodeSequence]:
 
     if seq_len == 0 \
         or len(inst_pool) == 0:
-        yield ''
+        yield CodeSequence([])
+        return
+
+    # MUST store all the variables generated
+    if seq_len == 1 \
+        and len(variables_online) == 1:
+        yield CodeSequence([ VecStore(variables_online[0], OUT_ARR, VecStore.LENGTH * stores_completed) ])
         return
 
     # select the instruction
@@ -370,13 +392,12 @@ def generate_vector_instruction_combinations(inst_pool: list,
 
     for (idx, actual_inst) in enumerate(actual_insts):
         new_variables_online_element = new_variables_online[idx]
-        inst_code = actual_inst.code()
 
         # print(f'trying: {inst_code}')
 
         for combination in generate_vector_instruction_combinations(inst_pool, new_variables_online_element,
                                                                     seq_len - 1, new_order, new_stores_completed):
-            yield inst_code + '\n' + combination
+            yield combination.prepend(actual_inst)
 
     # don't select the instruction
     for combination in generate_vector_instruction_combinations(inst_pool[1:], variables_online,
@@ -398,7 +419,7 @@ def generate_all_instruction_combinations(order: list) -> list:
 
         for (idx, combination) in enumerate(combinations):
             print(f'----------- {idx} ----------')
-            print(combination)
+            print(combination.code())
 
         print('=================================')
 
@@ -416,7 +437,7 @@ def generate_all_instruction_combinations(order: list) -> list:
 
         for (idx, combination) in enumerate(combinations):
             print(f'----------- {idx} ----------')
-            print(combination)
+            print(combination.code())
 
         print('=================================')
 
