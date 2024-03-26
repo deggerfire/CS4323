@@ -24,52 +24,52 @@ class Instruction:
     def Symbol_Gen(self) -> str:
         raise Exception("Illegal Symbol")
 
-# Test for no return
-class Nop(Instruction):
-    def __init__(self, comment) -> None:
-        super().__init__(KIND_REG_TO_REG, IO_REG)
+class Load(Instruction):
+    def __init__(self, src_arr: str = "", offset: int = 0) -> None:
+        super().__init__(KIND_MEM_TO_REG, I_ARR)
 
-        self.comment = comment
+        self.src_arr = src_arr
+        self.offset = offset
 
 
-    def code(self) -> str:
-        return f'// nop: {self.comment}'
-    
-    def Symbol_Gen(self) -> str:
-        return []
-
-# Test for many return
-class Nop2(Instruction):
-    def __init__(self, comment) -> None:
-        super().__init__(KIND_REG_TO_REG, IO_REG)
-
-        self.comment = comment
-
-    def code(self) -> str:
-        return f'// nop: {self.comment}'
-    
-    def Symbol_Gen(self) -> str:
-        return list(symbols('0=1 '
-                '1=2 '
-                '2=3 '
-                '3=0 '
-                '4=4 '
-                '5=5 '
-                '6=6 '))
-    
-# Test for 1 return
-class Nop3(Instruction):
-    def __init__(self, comment) -> None:
-        super().__init__(KIND_REG_TO_REG, IO_REG)
-
-        self.comment = comment
+    def dst_name(self) -> str:
+        return f'{self.src_arr}_{self.offset}'
 
 
     def code(self) -> str:
-        return f'// nop: {self.comment}'
-    
-    def Symbol_Gen(self) -> str:
-        return [symbols('7=7')]
+        assert ("" != self.src_arr)
+
+        return f'{DATA_TYPE} {self.dst_name()} = {self.src_arr}[{self.offset}];'
+
+    def Symbol_Gen(self, codeSymList) -> str:
+        codeSymList.append(f'{self.dst_name()}={self.offset}')
+        print("Load: " + str(codeSymList))
+
+class Store(Instruction):
+    def __init__(self, src: str = "", dst_arr: str = "", offset: int = 0) -> None:
+        super().__init__(KIND_REG_TO_MEM, O_ARR)
+
+        self.src = src
+        self.dst_arr = dst_arr
+        self.offset = offset
+
+
+    def src_name(self) -> str:
+        return self.src
+
+
+    def code(self) -> str:
+        assert ("" != self.dst_arr)
+        assert ("" != self.src)
+
+        return f'{DATA_TYPE} {self.dst_arr}[{self.offset}] = {self.src};'
+
+    def Symbol_Gen(self, codeSymList) -> str:
+        for symbol in codeSymList:
+            if f'{self.src}' in symbol.split("="):
+                codeSymList.append(symbols(f'{str(symbol).split("=")[1]}={self.offset}'))
+                codeSymList.remove(symbol)
+        print("Store: " + str(codeSymList))
     
 ############################
 ##The code being worked on##
@@ -81,8 +81,7 @@ def Check_Symbolically(correct, instructions):
     codeSymList = []
     for instr in instructions:
         # Use Symbol_Gen method to get the symbols from instruction
-        for sym in instr.Symbol_Gen():
-            codeSymList.append(sym)
+        instr.Symbol_Gen(codeSymList)
 
     if DEBUG: print(codeSymList) # Use this to see what symbols you made
             
@@ -121,6 +120,7 @@ correct_in = list(symbols(
                 '7=7 '))
 
 # Make test instructions
-intr = [Nop("test"), Nop2("test"), Nop3("test")]
+intr = [Load("src", 0), Store("src_0", "dst", 1)]
 
 print(Check_Symbolically(correct_in, intr))
+print(correct_in)

@@ -29,6 +29,9 @@ class Instruction:
 
     def code() -> str:
         raise Exception("Illegal instruction")
+    
+    def Symbol_Gen(self, codeSymList) -> str:
+        raise Exception("Illegal Symbol")
 
 
 class Nop(Instruction):
@@ -40,6 +43,9 @@ class Nop(Instruction):
 
     def code(self) -> str:
         return f'// nop: {self.comment}'
+    
+    def Symbol_Gen(self, codeSymList) -> str:
+        return []
 
 
 class Load(Instruction):
@@ -59,6 +65,8 @@ class Load(Instruction):
 
         return f'{DATA_TYPE} {self.dst_name()} = {self.src_arr}[{self.offset}];'
 
+    def Symbol_Gen(self, codeSymList) -> str:
+        codeSymList.append(symbols(f'{self.dst_name()}={self.offset}'))
 
 class Store(Instruction):
     def __init__(self, src: str = "", dst_arr: str = "", offset: int = 0) -> None:
@@ -79,7 +87,12 @@ class Store(Instruction):
 
         return f'{DATA_TYPE} {self.dst_arr}[{self.offset}] = {self.src};'
 
-
+    def Symbol_Gen(self, codeSymList) -> str:
+        for symbol in codeSymList:
+            if symbol.contains(f'{self.src}'):
+                codeSymList.append(f'{self.offset}={symbol[2]}')
+                codeSymList.remove(symbol)
+    
 class VecLoad(Instruction):
     LENGTH = 8
 
@@ -455,8 +468,7 @@ def Check_Symbolically(correct, instructions):
     codeSymList = []
     for instr in instructions:
         # Use Symbol_Gen method to get the symbols from instruction
-        for sym in instr.Symbol_Gen():
-            codeSymList.append(sym)
+        instr.Symbol_Gen()
 
     if DEBUG: print(codeSymList) # Use this to see what symbols you made
             
