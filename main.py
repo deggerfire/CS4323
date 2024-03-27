@@ -2,6 +2,7 @@ from __future__ import annotations
 import sys
 import sympy
 import re
+import itertools
 from collections.abc import Iterator
 
 
@@ -21,6 +22,24 @@ IO_REG = 3
 DATA_TYPE = "float"
 IN_ARR = "a"
 OUT_ARR = "o"
+
+
+def generate_shuffle_masks() -> list:
+    masks = []
+    two_bit_numbers = list(range(4))
+
+    for combinations in itertools.permutations(two_bit_numbers, len(two_bit_numbers)):
+        mask = 0
+
+        for (idx, combination) in enumerate(combinations):
+            mask = mask | (combination << (idx * 2))
+
+        masks.append(mask)
+
+    return masks
+
+
+UNDUMB_SHUFFLE_MASKS = generate_shuffle_masks()
 
 
 class Instruction:
@@ -504,7 +523,7 @@ def generate_vector_instruction_combinations(inst_pool: list,
                 src_a = variables_online[src_a_idx]
                 src_b = variables_online[src_b_idx]
 
-                for mask in range(MASK_MAX):
+                for mask in UNDUMB_SHUFFLE_MASKS:
                     new_variables_online_element = []
                     actual_inst = VecShuffle(src_a, src_b, mask)
 
@@ -640,6 +659,8 @@ def generate_all_instruction_combinations(order: list) -> list:
     # test()
     # exit(1)
 
+    print(f'{len(UNDUMB_SHUFFLE_MASKS)}: {UNDUMB_SHUFFLE_MASKS}')
+
     scalar_order = list(order)
     max_scalar_inst_len = 2 * len(scalar_order)
 
@@ -666,7 +687,7 @@ def generate_all_instruction_combinations(order: list) -> list:
     vector_order = list(order)
     vector_order.sort()
 
-    max_vector_inst_len = 4 # len(vector_order)
+    max_vector_inst_len = 5 # len(vector_order)
 
     print('vector sequences:')
 
