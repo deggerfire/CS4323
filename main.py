@@ -1,7 +1,8 @@
 from __future__ import annotations
+import csv
 import sys
 import sympy
-import re
+import os
 import itertools
 from collections.abc import Iterator
 
@@ -22,6 +23,8 @@ IO_REG = 3
 DATA_TYPE = "float"
 IN_ARR = "a"
 OUT_ARR = "o"
+
+AVX_INCLUDE = "#include <immintrin.h>"
 
 
 def generate_shuffle_masks() -> list:
@@ -76,6 +79,8 @@ class Nop(Instruction):
 
 
 class Load(Instruction):
+    LENGTH = 1
+
     def __init__(self, src_arr: str = "", offset: int = 0) -> None:
         super().__init__(KIND_MEM_TO_REG, I_ARR)
 
@@ -107,6 +112,8 @@ class Load(Instruction):
 
 
 class Store(Instruction):
+    LENGTH = Load.LENGTH
+
     def __init__(self, src: str = "", dst_arr: str = "", offset: int = 0) -> None:
         super().__init__(KIND_REG_TO_MEM, O_ARR)
 
@@ -127,7 +134,7 @@ class Store(Instruction):
         assert ("" != self.dst_arr)
         assert ("" != self.src)
 
-        return f'{DATA_TYPE} {self.dst_arr}[{self.offset}] = {self.src};'
+        return f'{self.dst_arr}[{self.offset}] = {self.src};'
 
 
     def Symbol_Gen(self, codeSymList) -> str:
@@ -188,7 +195,7 @@ class VecLoad(Instruction):
 
 
 class VecStore(Instruction):
-    LENGTH = 8
+    LENGTH = VecLoad.LENGTH
 
     def __init__(self, src: str = "", dst_arr: str = "", offset: int = 0) -> None:
         super().__init__(KIND_REG_TO_MEM, O_ARR)
@@ -345,11 +352,13 @@ class VecBlend(Instruction):
 
 
 class CodeSequence:
-    def __init__(self, instructions: list) -> None:
+    def __init__(self, stride_length: int, instructions: list,  header: str = '') -> None:
+        self.stride_length = stride_length
         self.instructions = instructions
+        self.header = header
 
 
-    def code(self):
+    def code(self) -> str:
         return '\n'.join(inst.code() for inst in self.instructions)
 
 
@@ -358,7 +367,7 @@ class CodeSequence:
         new_instructions.append(instruction)
         new_instructions.extend(self.instructions)
 
-        return CodeSequence(new_instructions)
+        return CodeSequence(self.stride_length, new_instructions, self.header)
 
     def create_symbols(self) -> map:
         symbols = {}
@@ -389,7 +398,7 @@ def prune_inst_of_kind(inst_pool: list, kind: int) -> list:
 
 def generate_scalar_instruction_combinations(inst_pool: list,
                                              variables_online: list, seq_len: int,
-                                             order: list,
+                                             order: list, stores_expected: int,
                                              stores_completed: int) -> list:
 
     if seq_len == 0 \
@@ -441,7 +450,7 @@ def generate_scalar_instruction_combinations(inst_pool: list,
 
     selected_combinations = generate_scalar_instruction_combinations(inst_pool, new_variables_online,
                                                                      seq_len - 1, new_order,
-                                                                     new_stores_completed)
+                                                                     stores_expected, new_stores_completed)
 
     updated_selected_combinations = []
 
@@ -449,12 +458,12 @@ def generate_scalar_instruction_combinations(inst_pool: list,
         for combination in selected_combinations:
             updated_selected_combinations.append(combination.prepend(actual_inst))
     else:
-        updated_selected_combinations = [ CodeSequence([actual_inst]) ]
+        updated_selected_combinations = [ CodeSequence(stores_expected, [actual_inst]) ]
 
     # don't select the instruction
     unselected_combinations = generate_scalar_instruction_combinations(inst_pool[1:], variables_online,
                                                                        seq_len, order,
-                                                                       stores_completed)
+                                                                       stores_expected, stores_completed)
 
 
     total_combinations = []
@@ -468,20 +477,22 @@ def generate_scalar_instruction_combinations(inst_pool: list,
 def generate_vector_instruction_combinations(inst_pool: list,
                                              variables_online: list, seq_len: int,
                                              order: list, stores_expected: int,
-                                             stores_completed: int) -> Iterator[CodeSequence]:
+                                             stores_completed: int) -> Iterator:
 
-    if stores_expected <= stores_completed * VecStore.LENGTH:
+    scalar_stores_completed = stores_completed * VecStore.LENGTH
+
+    if stores_expected <= scalar_stores_completed:
         return
 
     if seq_len == 0 \
         or len(inst_pool) == 0:
-        yield CodeSequence([])
+        yield CodeSequence(stores_expected, [], AVX_INCLUDE)
         return
 
     # MUST store all the variables generated
     if seq_len == 1 and variables_online:
         for variable_online in variables_online:
-            yield CodeSequence([ VecStore(variable_online, OUT_ARR, VecStore.LENGTH * stores_completed) ])
+            yield CodeSequence(stores_expected, [ VecStore(variable_online, OUT_ARR, VecStore.LENGTH * stores_completed) ], AVX_INCLUDE)
 
         return
 
@@ -622,7 +633,7 @@ def generate_baseline_instruction_combination(order: list) -> CodeSequence:
         instructions.append(load)
         instructions.append(store)
 
-    return CodeSequence(instructions)
+    return CodeSequence(len(order), instructions)
 
 
 def compare_symbols(expected_output: map, actual_output: map) -> bool:
@@ -641,18 +652,81 @@ def compare_symbols(expected_output: map, actual_output: map) -> bool:
     return True
 
 
-def test():
-    load = VecLoad(IN_ARR, 0)
-    # load2 = VecLoad(IN_ARR, 8)
-    # shfl = VecBlend(load.dst_name(), load2.dst_name(), 128)
-    store = VecStore(load.dst_name(), OUT_ARR, 0)
+def run_code_sequence(baseline_seq: CodeSequence, tuned_seq: CodeSequence) -> int:
+    perf = None
+    boilerplate = None
 
-    seq = CodeSequence([load, store])
+    with open("baseline_op.c.tmp", "r") as baseline_template:
+        boilerplate = baseline_template.readlines()
 
-    symbols = seq.create_symbols()
+    assert (boilerplate is not None)
 
-    for (k, v) in symbols.items():
-        print(f'{k} = {v}')
+    with open("baseline_op.c", "w") as baseline:
+        complete_code = []
+
+        complete_code.extend(boilerplate)
+
+        code = '\n'
+        code += f'{baseline_seq.header}\n'
+        code += f'void COMPUTE_NAME(int n, float *act_{IN_ARR}, float *act_{OUT_ARR})\n'
+        code += '{\n'
+        code += f'assert (n % {baseline_seq.stride_length} == 0);\n'
+        code += f'   for (int i = 0; i < n; i += {baseline_seq.stride_length})'
+        code += '   {\n'
+        code += f'      float *{IN_ARR} = &act_{IN_ARR}[i];\n'
+        code += f'      float *{OUT_ARR} = &act_{OUT_ARR}[i];\n'
+        code += f'{baseline_seq.code()}\n'
+        code += '   }\n'
+        code += '}\n'
+
+        complete_code.append(code)
+
+        baseline.writelines(complete_code)
+
+    with open("tuned_variant01_op.c", "w") as tuned:
+        complete_code = []
+
+        complete_code.extend(boilerplate)
+
+        code = '\n'
+        code += f'{tuned_seq.header}\n'
+        code += f'void COMPUTE_NAME(int n, float *act_{IN_ARR}, float *act_{OUT_ARR})\n'
+        code += '{\n'
+        code += f'assert (n % {tuned_seq.stride_length} == 0);\n'
+        code += f'   for (int i = 0; i < n; i += {tuned_seq.stride_length})'
+        code += '   {\n'
+        code += f'      float *{IN_ARR} = &act_{IN_ARR}[i];\n'
+        code += f'      float *{OUT_ARR} = &act_{OUT_ARR}[i];\n'
+        code += f'{tuned_seq.code()}\n'
+        code += '   }\n'
+        code += '}\n'
+
+        complete_code.append(code)
+
+        tuned.writelines(complete_code)
+
+    if 0 != os.system(f'make all-local'):
+        sys.exit("Variant FAILED to run")
+
+    with open("result_bench_local_op_var01.csv", "r") as results:
+        results_reader = csv.DictReader(results)
+        sum_nv = 0
+        sum_n = 0
+
+        for result in results_reader:
+            current_n = float(result['m0'])
+            current_v = float(result['result'])
+
+            current_nv = current_n * current_v
+
+            sum_n = sum_n + current_n
+            sum_nv = sum_nv + current_nv
+
+        perf = sum_nv / sum_n
+
+    assert (perf is not None)
+
+    return perf
 
 
 def generate_all_instruction_combinations(order: list) -> list:
@@ -675,11 +749,13 @@ def generate_all_instruction_combinations(order: list) -> list:
     for seq_len in range(1, max_scalar_inst_len + 1):
         print(f'============== {seq_len} ===============')
 
-        combinations = generate_scalar_instruction_combinations(list(SCALAR_INSTRUCTIONS), [], seq_len, scalar_order, 0)
+        combinations = generate_scalar_instruction_combinations(list(SCALAR_INSTRUCTIONS), [], seq_len, scalar_order, len(scalar_order), 0)
 
         for (idx, combination) in enumerate(combinations):
             if compare_symbols(baseline_symbols, combination.create_symbols()):
                 print(f'----------- {idx} ----------')
+                perf = run_code_sequence(baseline, combination)
+                print(f'---- perf: {idx} = {perf} ----')
                 print(combination.code())
 
         print('=================================')
@@ -699,6 +775,8 @@ def generate_all_instruction_combinations(order: list) -> list:
         for (idx, combination) in enumerate(combinations):
             if compare_symbols(baseline_symbols, combination.create_symbols()):
                 print(f'----------- {idx} ----------')
+                perf = run_code_sequence(baseline, combination)
+                print(f'---- perf: {idx} = {perf} ----')
                 print(combination.code())
 
         print('=================================')

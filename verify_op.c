@@ -17,21 +17,21 @@ extern void COMPUTE_NAME_TST( int m0,
 			      float *output_distributed );
 
 
-extern void DISTRIBUTED_ALLOCATE_NAME_REF( int m0, int max_offset,
+extern void DISTRIBUTED_ALLOCATE_NAME_REF( int m0,
 					   float **input_distributed,
 					   float **output_distributed );
 
-extern void DISTRIBUTED_ALLOCATE_NAME_TST( int m0, int max_offset,
+extern void DISTRIBUTED_ALLOCATE_NAME_TST( int m0,
 					   float **input_distributed,
 					   float **output_distributed );
 
 
 
-extern void DISTRIBUTE_DATA_NAME_REF( int m0, int max_offset,
+extern void DISTRIBUTE_DATA_NAME_REF( int m0,
 				      float *input_sequential,
 				      float *input_distributed);
 
-extern void DISTRIBUTE_DATA_NAME_TST( int m0, int max_offset,
+extern void DISTRIBUTE_DATA_NAME_TST( int m0,
 				      float *input_sequential,
 				      float *input_distributed);
 
@@ -133,17 +133,15 @@ int main( int argc, char *argv[] )
   int step_size;
 
   int in_m0;
-  int in_max_offset;
 
   // Get command line arguments
-  if(argc == 5 + 1 || argc == 6 + 1 )
+  if(argc == 4 + 1 || argc == 5 + 1 )
     {
       min_size  = atoi(argv[1]);
       max_size  = atoi(argv[2]);
       step_size = atoi(argv[3]);
 
       in_m0=atoi(argv[4]);
-      in_max_offset=atoi(argv[5]);
 
       /*
       printf("min_size: %d, max_size: %d, step_size: %d, in_m0: %d, in_max_offset: %d\n",
@@ -153,13 +151,13 @@ int main( int argc, char *argv[] )
       // default to printing to stdout
       result_file = stdout;
 
-      if(argc == 6 + 1)
+      if(argc == 5 + 1)
 	{
 	  // we don't want every node opening the same file
 	  // to write to.
 	  if(rid == 0 )
 	    {
-	      result_file = fopen(argv[6],"w");
+	      result_file = fopen(argv[5],"w");
 	    }
 	  else
 	    {
@@ -169,7 +167,7 @@ int main( int argc, char *argv[] )
     }
   else
     {
-      printf("usage: %s min max step m0 max_offset [filename]\n",
+      printf("usage: %s min max step m0 [filename]\n",
 	     argv[0]);
       exit(1);
     }
@@ -191,16 +189,15 @@ int main( int argc, char *argv[] )
 
       // input sizes
       int m0=scale_p_on_pos_ret_v_on_neg(p,in_m0);
-      int max_offset=in_max_offset;
 
       // How big of a buffer do we need
       int input_sequential_sz  =m0;
       int output_sequential_sz =m0;
 
-      float *input_sequential_ref   = (float *)calloc((input_sequential_sz + max_offset), sizeof(float));
+      float *input_sequential_ref   = (float *)calloc((input_sequential_sz), sizeof(float));
       float *output_sequential_ref  = (float *)calloc(output_sequential_sz, sizeof(float));
 
-      float *input_sequential_tst   = (float *)calloc((input_sequential_sz + max_offset), sizeof(float));
+      float *input_sequential_tst   = (float *)calloc((input_sequential_sz), sizeof(float));
       float *output_sequential_tst  = (float *)calloc(output_sequential_sz, sizeof(float));
 
       assert(NULL != input_sequential_ref);
@@ -235,12 +232,12 @@ int main( int argc, char *argv[] )
       float *output_distributed_ref;
 
       // Allocate distributed buffers for the reference
-      DISTRIBUTED_ALLOCATE_NAME_REF( m0, max_offset,
+      DISTRIBUTED_ALLOCATE_NAME_REF( m0,
 				     &input_distributed_ref,
 				     &output_distributed_ref );
 
       // Distribute the sequential buffers 
-      DISTRIBUTE_DATA_NAME_REF( m0, max_offset,
+      DISTRIBUTE_DATA_NAME_REF( m0,
 				input_sequential_ref,
 				input_distributed_ref );
      
@@ -266,12 +263,12 @@ int main( int argc, char *argv[] )
       float *output_distributed_tst;
 
       // Allocate distributed buffers for the reference
-      DISTRIBUTED_ALLOCATE_NAME_TST( m0, max_offset,
+      DISTRIBUTED_ALLOCATE_NAME_TST( m0,
 				     &input_distributed_tst,
 				     &output_distributed_tst );
 
       // Distribute the sequential buffers 
-      DISTRIBUTE_DATA_NAME_TST( m0, max_offset,
+      DISTRIBUTE_DATA_NAME_TST( m0,
 				input_sequential_tst,
 				input_distributed_tst );
      

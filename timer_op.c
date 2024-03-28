@@ -22,21 +22,21 @@ extern void COMPUTE_NAME_TST( int m0,
 			      float *output_distributed );
 
 
-extern void DISTRIBUTED_ALLOCATE_NAME_REF( int m0, int max_offset,
+extern void DISTRIBUTED_ALLOCATE_NAME_REF( int m0,
 					   float **input_distributed,
 					   float **output_distributed );
 
-extern void DISTRIBUTED_ALLOCATE_NAME_TST( int m0, int max_offset,
+extern void DISTRIBUTED_ALLOCATE_NAME_TST( int m0,
 					   float **input_distributed,
 					   float **output_distributed );
 
 
 
-extern void DISTRIBUTE_DATA_NAME_REF( int m0, int max_offset,
+extern void DISTRIBUTE_DATA_NAME_REF( int m0,
 				      float *input_sequential,
 				      float *input_distributed);
 
-extern void DISTRIBUTE_DATA_NAME_TST( int m0, int max_offset,
+extern void DISTRIBUTE_DATA_NAME_TST( int m0,
 				      float *input_sequential,
 				      float *input_distributed);
 
@@ -112,7 +112,7 @@ void flush_cache()
 void time_function_under_test(int num_trials,
 			      int num_runs_per_trial,
 			      long *results, // results from each trial
-			      int m0, int k0,
+			      int m0,
 			      float *input_distributed,
 			      float *output_distributed
 			      )
@@ -192,7 +192,7 @@ int main( int argc, char *argv[] )
   FILE *result_file;
   
   int num_trials = 30;
-  int num_runs_per_trial = 1;
+  int num_runs_per_trial = 1000;
 
   // Problem parameters
   int min_size;
@@ -200,28 +200,26 @@ int main( int argc, char *argv[] )
   int step_size;
 
   int in_m0;
-  int in_k0;
 
   // Get command line arguments
-  if(argc == 5 + 1 || argc == 6 + 1 )
+  if(argc == 4 + 1 || argc == 5 + 1 )
     {
       min_size  = atoi(argv[1]);
       max_size  = atoi(argv[2]);
       step_size = atoi(argv[3]);
 
       in_m0=atoi(argv[4]);
-      in_k0=atoi(argv[5]);
 
       // default to printing to stdout
       result_file = stdout;
 
-      if(argc == 6 + 1)
+      if(argc == 5 + 1)
 	{
 	  // we don't want every node opening the same file
 	  // to write to.
 	  if(rid == 0 )
 	    {
-	      result_file = fopen(argv[6],"w");
+	      result_file = fopen(argv[5],"w");
 	    }
 	  else
 	    {
@@ -231,7 +229,7 @@ int main( int argc, char *argv[] )
     }
   else
     {
-      printf("usage: %s min max step m0 k0 [filename]\n",
+      printf("usage: %s min max step m0 [filename]\n",
 	     argv[0]);
       exit(1);
     }
@@ -240,7 +238,7 @@ int main( int argc, char *argv[] )
   if( rid == 0 )
     {
       /*root node */ 
-      fprintf(result_file, "num_ranks,m0,k0,result\n");
+      fprintf(result_file, "num_ranks,m0,result\n");
     }
   else
     {/* all other nodes*/ }
@@ -253,13 +251,12 @@ int main( int argc, char *argv[] )
 
       // input sizes
       int m0=scale_p_on_pos_ret_v_on_neg(p,in_m0);
-      int k0=in_k0;
 
       // How big of a buffer do we need
       int input_sequential_sz  =m0;
       int output_sequential_sz =m0;
 
-      float *input_sequential_tst   = (float *)calloc((input_sequential_sz + k0), sizeof(float));
+      float *input_sequential_tst   = (float *)calloc(input_sequential_sz, sizeof(float));
       float *output_sequential_tst  = (float *)malloc(sizeof(float)*output_sequential_sz);
 
 
@@ -278,12 +275,12 @@ int main( int argc, char *argv[] )
       float *output_distributed_tst;
 
       // Allocate distributed buffers for the reference
-      DISTRIBUTED_ALLOCATE_NAME_TST( m0, k0,
+      DISTRIBUTED_ALLOCATE_NAME_TST( m0,
 				     &input_distributed_tst,
 				     &output_distributed_tst );
 
       // Distribute the sequential buffers 
-      DISTRIBUTE_DATA_NAME_TST( m0, k0,
+      DISTRIBUTE_DATA_NAME_TST( m0,
 				input_sequential_tst,
 				input_distributed_tst);
      
@@ -293,7 +290,7 @@ int main( int argc, char *argv[] )
       time_function_under_test(num_trials,
 			       num_runs_per_trial,
 			       results, // results from each trial
-			       m0, k0,
+			       m0,
 			       input_distributed_tst,
 			       output_distributed_tst
 			       );
@@ -325,9 +322,9 @@ int main( int argc, char *argv[] )
 	{
 	  /* root node */
 
-	  fprintf(result_file, "%i,%i,%i,%2.2f\n",
+	  fprintf(result_file, "%i,%i,%2.2f\n",
 		  num_ranks,
-		  m0,k0, throughput);
+		  m0, throughput);
 	}
       else
 	{/* all other nodes */}

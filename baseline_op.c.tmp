@@ -30,6 +30,7 @@
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #ifndef COMPUTE_NAME
 #define COMPUTE_NAME baseline
@@ -80,7 +81,7 @@ void COMPUTE_NAME(int m0,
 */
 
 // Create the buffers on each node
-void DISTRIBUTED_ALLOCATE_NAME(int m0, int max_offset,
+void DISTRIBUTED_ALLOCATE_NAME(int m0,
                                float **input_distributed,
                                float **output_distributed)
 {
@@ -96,7 +97,7 @@ void DISTRIBUTED_ALLOCATE_NAME(int m0, int max_offset,
   if (rid == root_rid)
   {
 
-    *input_distributed = (float *)malloc(sizeof(float) * (m0 + max_offset));
+    *input_distributed = (float *)malloc(sizeof(float) * m0);
     *output_distributed = (float *)malloc(sizeof(float) * m0);
   }
   else
@@ -104,7 +105,7 @@ void DISTRIBUTED_ALLOCATE_NAME(int m0, int max_offset,
   }
 }
 
-void DISTRIBUTE_DATA_NAME(int m0, int max_offset,
+void DISTRIBUTE_DATA_NAME(int m0,
                           float *input_sequential,
                           float *input_distributed)
 {
@@ -121,7 +122,7 @@ void DISTRIBUTE_DATA_NAME(int m0, int max_offset,
   if (rid == root_rid)
   {
     // Distribute the inputs
-    for (int i0 = 0; i0 < m0 + max_offset; ++i0)
+    for (int i0 = 0; i0 < m0; ++i0)
     {
       input_distributed[i0] = input_sequential[i0];
     }
